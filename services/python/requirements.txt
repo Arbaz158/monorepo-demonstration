@@ -1,0 +1,6 @@
+# Shared dependencies for all Python services (ml-service, notification-service)
+# Example:
+# fastapi==0.115.0
+# requests==2.32.0
+
+

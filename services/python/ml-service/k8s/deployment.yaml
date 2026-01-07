@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-service
+  template:
+    metadata:
+      labels:
+        app: ml-service
+    spec:
+      containers:
+        - name: ml-service
+          image: arbaz344/monorepo-demonstration:ml-service
+          ports:
+            - containerPort: 5000
+          env:
+            - name: PORT
+              value: "5000"
+
+
