@@ -6,7 +6,7 @@ K8S_SERVICES := $(GO_SERVICES) $(PY_SERVICES)
 # Example: DOCKER_REPO = myuser344/monorepo-demonstration
 DOCKER_REPO ?= arbaz344/monorepo-demonstration
 
-.PHONY: build-go build-python docker-build-all docker-login docker-check-login
+.PHONY: build-go build-python docker-build-all docker-build-go docker-build-python docker-build-push-go docker-build-push-python docker-build-% docker-build-push-% docker-login docker-check-login
 
 docker-login:
 	@echo "Logging into Docker Hub..."
@@ -32,6 +32,7 @@ build-python:
 		python -m py_compile $$(find $$s -maxdepth 1 -name '*.py'); \
 	done
 
+# Build all services and push to Docker Hub
 docker-build-all: docker-check-login
 	@for s in $(GO_SERVICES) $(PY_SERVICES); do \
 		name=$$(basename $$s); \
@@ -41,7 +42,73 @@ docker-build-all: docker-check-login
 		docker push $(DOCKER_REPO):$$name; \
 	done
 
-.PHONY: k8s-apply-all k8s-delete-all k8s-apply-% k8s-delete-%
+# Build all Go services (without pushing)
+docker-build-go:
+	@for s in $(GO_SERVICES); do \
+		name=$$(basename $$s); \
+		echo "Building docker image $(DOCKER_REPO):$$name"; \
+		docker build -t $(DOCKER_REPO):$$name -f $$s/Dockerfile .; \
+	done
+
+# Build all Python services (without pushing)
+docker-build-python:
+	@for s in $(PY_SERVICES); do \
+		name=$$(basename $$s); \
+		echo "Building docker image $(DOCKER_REPO):$$name"; \
+		docker build -t $(DOCKER_REPO):$$name -f $$s/Dockerfile .; \
+	done
+
+# Build and push all Go services to Docker Hub
+docker-build-push-go: docker-check-login
+	@for s in $(GO_SERVICES); do \
+		name=$$(basename $$s); \
+		echo "Building docker image $(DOCKER_REPO):$$name"; \
+		docker build -t $(DOCKER_REPO):$$name -f $$s/Dockerfile .; \
+		echo "Pushing docker image $(DOCKER_REPO):$$name"; \
+		docker push $(DOCKER_REPO):$$name; \
+	done
+
+# Build and push all Python services to Docker Hub
+docker-build-push-python: docker-check-login
+	@for s in $(PY_SERVICES); do \
+		name=$$(basename $$s); \
+		echo "Building docker image $(DOCKER_REPO):$$name"; \
+		docker build -t $(DOCKER_REPO):$$name -f $$s/Dockerfile .; \
+		echo "Pushing docker image $(DOCKER_REPO):$$name"; \
+		docker push $(DOCKER_REPO):$$name; \
+	done
+
+# Build and push a single service to Docker Hub (MUST come before docker-build-%)
+# Usage: make docker-build-push-user-service OR make docker-build-push-notification-service
+docker-build-push-%: docker-check-login
+	@service_path=$$(if [ -f services/go/$*/Dockerfile ]; then echo services/go/$*; elif [ -f services/python/$*/Dockerfile ]; then echo services/python/$*; else echo ""; fi); \
+	if [ -z "$$service_path" ]; then \
+		echo "✗ Service '$*' not found. Available services:"; \
+		echo "  Go: user-service, order-service, payment-service"; \
+		echo "  Python: ml-service, notification-service"; \
+		exit 1; \
+	else \
+		echo "Building docker image $(DOCKER_REPO):$*"; \
+		docker build -t $(DOCKER_REPO):$* -f $$service_path/Dockerfile .; \
+		echo "Pushing docker image $(DOCKER_REPO):$*"; \
+		docker push $(DOCKER_REPO):$*; \
+	fi
+
+# Build a single service (without pushing)
+# Usage: make docker-build-user-service OR make docker-build-notification-service
+docker-build-%:
+	@service_path=$$(if [ -f services/go/$*/Dockerfile ]; then echo services/go/$*; elif [ -f services/python/$*/Dockerfile ]; then echo services/python/$*; else echo ""; fi); \
+	if [ -z "$$service_path" ]; then \
+		echo "✗ Service '$*' not found. Available services:"; \
+		echo "  Go: user-service, order-service, payment-service"; \
+		echo "  Python: ml-service, notification-service"; \
+		exit 1; \
+	else \
+		echo "Building docker image $(DOCKER_REPO):$*"; \
+		docker build -t $(DOCKER_REPO):$* -f $$service_path/Dockerfile .; \
+	fi
+
+.PHONY: k8s-apply-all k8s-delete-all k8s-apply-go k8s-apply-python k8s-delete-go k8s-delete-python k8s-apply-% k8s-delete-%
 
 k8s-apply-all:
 	@for s in $(K8S_SERVICES); do \
@@ -51,6 +118,34 @@ k8s-apply-all:
 
 k8s-delete-all:
 	@for s in $(K8S_SERVICES); do \
+		echo "Deleting $$s k8s manifests"; \
+		kubectl delete -f $$s/k8s --ignore-not-found; \
+	done
+
+# Apply all Go service manifests
+k8s-apply-go:
+	@for s in $(GO_SERVICES); do \
+		echo "Applying $$s k8s manifests"; \
+		kubectl apply -f $$s/k8s; \
+	done
+
+# Apply all Python service manifests
+k8s-apply-python:
+	@for s in $(PY_SERVICES); do \
+		echo "Applying $$s k8s manifests"; \
+		kubectl apply -f $$s/k8s; \
+	done
+
+# Delete all Go service manifests
+k8s-delete-go:
+	@for s in $(GO_SERVICES); do \
+		echo "Deleting $$s k8s manifests"; \
+		kubectl delete -f $$s/k8s --ignore-not-found; \
+	done
+
+# Delete all Python service manifests
+k8s-delete-python:
+	@for s in $(PY_SERVICES); do \
 		echo "Deleting $$s k8s manifests"; \
 		kubectl delete -f $$s/k8s --ignore-not-found; \
 	done

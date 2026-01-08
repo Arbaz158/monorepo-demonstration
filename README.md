@@ -83,16 +83,87 @@ make k8s-apply-all
 make k8s-delete-all
 ```
 
-## Deploy a Single Service
+## Build a Single Service
 
-After building and pushing images (`make docker-build-all`):
+You can build individual services without building everything:
 
+**From the monorepo root:**
+
+```bash
+# Build only (no push)
+make docker-build-notification-service
+make docker-build-ml-service
+make docker-build-user-service
+make docker-build-order-service
+make docker-build-payment-service
+
+# Build and push to Docker Hub
+make docker-build-push-notification-service
+make docker-build-push-ml-service
+# ... etc
+```
+
+**Important:** Dockerfiles expect the build context to be the monorepo root (because they reference `services/python/requirements.txt` and similar paths). Always run `docker build` commands from the **root directory**, not from within service directories.
+
+If you want to build from the command line directly:
+```bash
+# From the monorepo root directory:
+docker build -t arbaz344/monorepo-demonstration:notification-service -f services/python/notification-service/Dockerfile .
+```
+
+## Build Services by Language
+
+You can build and push services grouped by language:
+
+**Go services only:**
+```bash
+# Build all Go services (no push)
+make docker-build-go
+
+# Build and push all Go services
+make docker-build-push-go
+```
+
+**Python services only:**
+```bash
+# Build all Python services (no push)
+make docker-build-python
+
+# Build and push all Python services
+make docker-build-push-python
+```
+
+## Deploy Services
+
+**Deploy all services:**
+```bash
+make k8s-apply-all
+```
+
+**Deploy by language:**
+```bash
+# Deploy all Go services
+make k8s-apply-go
+
+# Deploy all Python services
+make k8s-apply-python
+```
+
+**Deploy a single service:**
 ```bash
 make k8s-apply-user-service          # or order-service, payment-service, ml-service, notification-service
 ```
 
-Delete one:
+**Delete services:**
 ```bash
+# Delete all
+make k8s-delete-all
+
+# Delete by language
+make k8s-delete-go
+make k8s-delete-python
+
+# Delete single service
 make k8s-delete-user-service
 ```
 
@@ -122,4 +193,18 @@ make k8s-delete-user-service
 - **On-prem/Private clusters**: Ensure cluster nodes can access Docker Hub (or configure private registry)
 
 For **private registries**, update `DOCKER_REPO` in Makefile and add `imagePullSecrets` to deployments if required.
+
+
+# Command to delete all the images of a particluar docker hub repo
+docker images arbaz344/monorepo-demonstration -q | xargs docker rmi -f
+
+# Forward order-service to local port 8080
+kubectl port-forward svc/order-service 8080:80
+
+# Test health endpoint
+curl http://localhost:8080/health
+
+# Or test orders endpoint
+curl http://localhost:8080/orders
+
 
